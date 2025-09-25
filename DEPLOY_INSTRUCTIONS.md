@@ -1,163 +1,153 @@
-# Instrucciones de Deploy - OPE Medicina Next.js
+# 🚀 Instrucciones de Deploy - OPE Medicina Preventiva
 
-## 📋 Pre-requisitos
-- Cuenta de GitHub ✓
-- Cuenta de Vercel ✓
-- Node.js instalado (para desarrollo local)
+## ✅ Estado Actual del Proyecto
+- ✅ **Código completamente implementado** - 100% funcionalidades
+- ✅ **Dependencias instaladas** - `package-lock.json` generado
+- ✅ **Build verificado** - Compila sin errores
+- ✅ **Git inicializado y commit realizado**
+- ✅ **TODO LISTO PARA PUSH Y DEPLOY**
 
-## 🚀 Pasos de Deploy
+## 📤 Paso 1: Subir a GitHub
 
-### 1. Preparar el código
+### Crear repositorio en GitHub:
+1. Ve a [github.com/new](https://github.com/new)
+2. Nombre: `ope-medicina-preventiva`
+3. Descripción: "Sistema completo de estudio para OPE Medicina Preventiva"
+4. **NO** inicialices con README, .gitignore o licencia
+5. Crear repositorio
 
+### Conectar y subir código:
 ```bash
-# En la carpeta ope-medicina-next
-cd ope-medicina-next
-
-# Inicializar Git
-git init
-git add .
-git commit -m "Initial commit - OPE Medicina Next.js"
-```
-
-### 2. Subir a GitHub
-
-```bash
-# Crear nuevo repositorio en GitHub (privado recomendado)
-# Nombre sugerido: ope-medicina-next
-
-# Conectar y subir
-git remote add origin https://github.com/TU_USUARIO/ope-medicina-next.git
+# Reemplaza [tu-usuario] con tu usuario de GitHub
+git remote add origin https://github.com/[tu-usuario]/ope-medicina-preventiva.git
 git branch -M main
 git push -u origin main
 ```
 
-### 3. Deploy en Vercel
+Si usas SSH:
+```bash
+git remote add origin git@github.com:[tu-usuario]/ope-medicina-preventiva.git
+git push -u origin main
+```
 
-#### En el Dashboard de Vercel:
+## 🚀 Paso 2: Deploy en Vercel
 
-1. **Click en "Add New..." → "Project"**
-2. **"Import Git Repository"**
-3. **Seleccionar `ope-medicina-next`**
-4. **Configuración del proyecto:**
-   - Framework Preset: `Next.js` (detectado automáticamente)
-   - Root Directory: `./` (dejar por defecto)
-   - Build Command: `next build` (por defecto)
-   - Output Directory: `.next` (por defecto)
-   - Install Command: `npm install` (por defecto)
+### A. Importar proyecto:
+1. Ve a [vercel.com/new](https://vercel.com/new)
+2. "Import Git Repository"
+3. Selecciona el repo `ope-medicina-preventiva`
+4. Framework Preset: Next.js (auto-detectado)
+5. **NO cambies ninguna configuración**
+6. Click "Deploy" (primer deploy sin KV)
 
-5. **NO añadir variables de entorno todavía**
-6. **Click "Deploy"**
+### B. Configurar Vercel KV:
+1. En el dashboard del proyecto → "Storage"
+2. "Create Database" → "KV"
+3. Database Name: `ope-medicina-kv`
+4. Region: La más cercana a ti
+5. "Create"
 
-### 4. Configurar Base de Datos (Vercel KV)
-
-#### Después del primer deploy:
-
-1. **En tu proyecto → pestaña "Storage"**
-2. **Click "Create Database"**
-3. **Seleccionar "KV"**
-4. **Configuración:**
-   - Database Name: `ope-medicina-kv`
-   - Primary Region: Seleccionar la más cercana
-   - Environment: `Production`
-5. **Click "Create"**
-
-**IMPORTANTE**: Vercel añadirá automáticamente estas variables:
+**Las siguientes variables se añaden automáticamente:**
 - `KV_URL`
 - `KV_REST_API_URL`
 - `KV_REST_API_TOKEN`
 - `KV_REST_API_READ_ONLY_TOKEN`
 
-### 5. Redeploy con Variables de Entorno
+### C. Agregar variable adicional:
+1. Settings → Environment Variables
+2. Add new:
+   - Name: `NEXT_PUBLIC_APP_URL`
+   - Value: `https://[tu-proyecto].vercel.app`
+   - Environments: ✓ Production, ✓ Preview, ✓ Development
+3. Save
 
-1. **Ir a "Deployments"**
-2. **En el último deployment → 3 puntos → "Redeploy"**
-3. **"Redeploy with existing Build Cache"**
+### D. Re-deploy final:
+1. Deployments → Último deployment
+2. Tres puntos → "Redeploy"
+3. "Use existing Build Cache"
+4. Redeploy
 
-### 6. ¡Listo! 🎉
+## ✅ Verificación de Funcionalidades
 
-Tu app estará en: `https://ope-medicina-next.vercel.app`
+Después del deploy, verifica:
 
-## 🧪 Verificación
+### Funcionalidades Críticas:
+- [ ] **Timer**: Se muestra y funciona
+- [ ] **Pausar/Reanudar**: Botón funciona y guarda estado
+- [ ] **Feedback**: Muestra correcto/incorrecto al responder
+- [ ] **Historial**: Lista todos los tests realizados
 
-1. **Acceder a la URL**
-2. **Verificar que carga la página**
-3. **Hacer un test de prueba**
-4. **Refrescar y verificar que el progreso persiste**
-5. **Probar en móvil**
+### Análisis y Visualización:
+- [ ] **Estadísticas**: Gráficos se muestran correctamente
+- [ ] **Revisión**: Puedes revisar respuestas después del test
+- [ ] **Export CSV**: Descarga el archivo correctamente
+
+### Configuración:
+- [ ] **Settings**: Cambios se guardan
+- [ ] **Navegación**: Menú móvil funciona
+- [ ] **About**: Información se muestra
+
+### Persistencia:
+- [ ] Cerrar y abrir mantiene el progreso
+- [ ] Funciona en diferentes dispositivos
 
 ## 🛠️ Desarrollo Local
 
-```bash
-# Instalar dependencias
-npm install
+Si necesitas hacer cambios:
 
-# Crear archivo de variables locales
+```bash
+# Variables de entorno (copia de Vercel Dashboard)
 cp .env.local.example .env.local
-# Editar .env.local con las credenciales de Vercel KV
+# Editar .env.local con tus credenciales
 
-# Ejecutar en desarrollo
+# Desarrollo
 npm run dev
-```
 
-## 📝 Comandos Útiles de Vercel
-
-```bash
-# Ver deployments
-vercel ls
-
-# Ver logs
-vercel logs
-
-# Ver variables de entorno
-vercel env ls
-
-# Deploy manual
-vercel --prod
+# Después de cambios
+git add .
+git commit -m "Descripción del cambio"
+git push
+# Vercel despliega automáticamente
 ```
 
 ## ❓ Solución de Problemas
 
-### Error: "Module not found"
-```bash
-# Limpiar caché y reinstalar
-rm -rf node_modules .next
-npm install
-npm run build
-```
+### "Module not found" en Vercel:
+- Verifica que `package-lock.json` está en el repo
+- Limpia caché en Vercel: Settings → Functions → Purge Cache
 
-### KV no funciona
-1. Verificar en Settings → Environment Variables
-2. Las variables KV_* deben estar presentes
-3. Redeploy después de crear KV
+### KV no guarda datos:
+- Verifica variables en Settings → Environment Variables
+- Deben existir las 4 variables KV_*
+- Redeploy después de cambios
 
-### Build falla
-1. Revisar logs del build en Vercel
-2. Ejecutar localmente: `npm run build`
-3. Verificar versión de Node.js
+### Build falla:
+- Revisa logs en Vercel Dashboard
+- Prueba localmente: `npm run build`
 
-## 🔄 Actualizaciones
+### CORS errors:
+- Verifica que `NEXT_PUBLIC_APP_URL` está configurado
+- Debe coincidir con tu URL de Vercel
 
-Para actualizar la app:
+## 📱 Información del Proyecto
 
-```bash
-# Hacer cambios
-git add .
-git commit -m "Update: descripción"
-git push
+- **Total preguntas**: 1512
+- **Categorías**: 6
+- **Funcionalidades**: 12 (100% de la app original)
+- **Framework**: Next.js 14
+- **Base de datos**: Vercel KV (Redis)
+- **Gráficos**: Recharts
+- **Responsive**: Sí
 
-# Vercel desplegará automáticamente
-```
+## 🎯 Siguientes Pasos
 
-## 💡 Tips
+1. **Hacer test de prueba** para verificar todo
+2. **Compartir URL** con otros estudiantes
+3. **Configurar dominio personalizado** (opcional)
+4. **Activar Analytics** en Vercel (gratis)
 
-1. **Preview Deployments**: Cada PR crea un preview
-2. **Dominios personalizados**: Settings → Domains
-3. **Analytics**: Habilitar en proyecto (gratis)
-4. **Monitoreo**: Revisar Functions → Logs
+---
 
-## 🎯 Siguiente Paso
+💪 ¡Tu aplicación está lista para usar!
 
-1. Hacer el primer test
-2. Verificar sincronización entre dispositivos
-3. Personalizar si es necesario
-4. ¡Estudiar para la OPE! 📚
+Tiempo estimado total de deploy: 10-15 minutos
