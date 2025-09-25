@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import Timer from './Timer';
+import { QuizStorage } from '../lib/kv-client';
+
+const storage = new QuizStorage();
 
 export default function QuizScreen({ onComplete }) {
   const [questions, setQuestions] = useState([]);
@@ -6,10 +10,39 @@ export default function QuizScreen({ onComplete }) {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [startTime] = useState(new Date());
+  const [isPaused, setIsPaused] = useState(false);
+  const [config, setConfig] = useState({});
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
   
   useEffect(() => {
-    loadQuestions();
+    loadInitialData();
   }, []);
+  
+  const loadInitialData = async () => {
+    try {
+      // Cargar configuración del usuario
+      const userConfig = await storage.getUserConfig();
+      setConfig(userConfig);
+      
+      // Verificar si hay un test en curso
+      const savedState = await storage.getTestState();
+      if (savedState && savedState.questions) {
+        // Restaurar estado guardado
+        setQuestions(savedState.questions);
+        setCurrentIndex(savedState.currentIndex || 0);
+        setAnswers(savedState.answers || {});
+        setElapsedTime(savedState.elapsedTime || 0);
+        setLoading(false);
+      } else {
+        // Cargar nuevas preguntas
+        await loadQuestions();
+      }
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      await loadQuestions();
+    }
+  };
   
   const loadQuestions = async () => {
     try {
@@ -40,10 +73,19 @@ export default function QuizScreen({ onComplete }) {
     const isCorrect = option === question.correcta;
     
     // Actualizar respuestas locales
-    setAnswers({
+    const newAnswers = {
       ...answers,
       [question.id]: option
-    });
+    };
+    setAnswers(newAnswers);
+    
+    // Mostrar feedback si está habilitado
+    if (config.show_feedback) {
+      setShowFeedback(true);
+    }
+    
+    // Guardar estado del test
+    await saveTestState(newAnswers);
     
     // Guardar respuesta en el servidor
     try {
@@ -61,18 +103,42 @@ export default function QuizScreen({ onComplete }) {
     }
   };
   
+  const saveTestState = async (currentAnswers = answers) => {
+    const state = {
+      questions,
+      currentIndex,
+      answers: currentAnswers,
+      elapsedTime,
+      startTime,
+      isPaused
+    };
+    await storage.saveTestState(state);
+  };
+  
+  const togglePause = async () => {
+    setIsPaused(!isPaused);
+    await saveTestState();
+  };
+  
   const previousQuestion = () => {
     if (currentIndex > 0) {
+      setShowFeedback(false);
       setCurrentIndex(currentIndex - 1);
     }
   };
   
   const nextQuestion = () => {
+    setShowFeedback(false);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
       finishTest();
     }
+  };
+  
+  const handleTimeUp = () => {
+    alert('¡Tiempo agotado! El test se finalizará automáticamente.');
+    finishTest();
   };
   
   const finishTest = async () => {
@@ -105,6 +171,9 @@ export default function QuizScreen({ onComplete }) {
       console.error('Error saving test:', error);
     }
     
+    // Limpiar estado guardado
+    await storage.clearTestState();
+    
     // Pasar resultados al componente padre
     onComplete({
       questions,
@@ -115,6 +184,25 @@ export default function QuizScreen({ onComplete }) {
       duration: Math.round((endTime - startTime) / 1000 / 60)
     });
   };
+  
+  // Auto-guardar estado cada vez que cambia
+  useEffect(() => {
+    if (questions.length > 0 && !loading) {
+      const interval = setInterval(() => {
+        if (!isPaused) {
+          setElapsedTime(prev => prev + 1);
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [questions, loading, isPaused]);
+  
+  useEffect(() => {
+    if (questions.length > 0 && !loading) {
+      saveTestState();
+    }
+  }, [currentIndex, isPaused]);
   
   if (loading) {
     return (
@@ -128,9 +216,30 @@ export default function QuizScreen({ onComplete }) {
   const question = questions[currentIndex];
   const selectedAnswer = answers[question.id];
   const progress = ((currentIndex + 1) / questions.length) * 100;
+  const isCorrect = selectedAnswer && selectedAnswer === question.correcta;
   
   return (
     <div className="container fade-in">
+      {config.timer_enabled && (
+        <Timer
+          initialTime={config.timer_minutes * 60}
+          isPaused={isPaused}
+          onTimeUp={handleTimeUp}
+        />
+      )}
+      
+      <div className="controls-bar">
+        <button 
+          className={`btn ${isPaused ? 'btn-success' : 'btn-warning'}`}
+          onClick={togglePause}
+        >
+          {isPaused ? '▶ Reanudar' : '‖ Pausar'}
+        </button>
+        <span className="test-status">
+          {isPaused ? 'TEST EN PAUSA' : 'TEST EN CURSO'}
+        </span>
+      </div>
+      
       <div className="question-card">
         <div className="question-header">
           <span className="question-number">
@@ -146,34 +255,69 @@ export default function QuizScreen({ onComplete }) {
         </div>
         
         <div className="options">
-          {Object.entries(question.opciones).map(([key, value]) => (
-            <div
-              key={key}
-              className={`option ${selectedAnswer === key ? 'selected' : ''}`}
-              onClick={() => selectAnswer(key)}
-            >
-              <span className="option-letter">{key.toUpperCase()})</span>
-              {value}
-            </div>
-          ))}
+          {Object.entries(question.opciones).map(([key, value]) => {
+            const isSelected = selectedAnswer === key;
+            const isCorrectOption = key === question.correcta;
+            
+            let optionClass = 'option';
+            if (showFeedback && isSelected) {
+              optionClass += isCorrect ? ' correct' : ' incorrect';
+            }
+            if (showFeedback && !isSelected && isCorrectOption) {
+              optionClass += ' correct-answer';
+            }
+            if (!showFeedback && isSelected) {
+              optionClass += ' selected';
+            }
+            
+            return (
+              <div
+                key={key}
+                className={optionClass}
+                onClick={() => !showFeedback && !isPaused && selectAnswer(key)}
+                style={{ cursor: showFeedback || isPaused ? 'default' : 'pointer' }}
+              >
+                <span className="option-letter">{key.toUpperCase()})</span>
+                {value}
+              </div>
+            );
+          })}
         </div>
+        
+        {showFeedback && (
+          <div className={`feedback-message ${isCorrect ? 'correct' : 'incorrect'}`}>
+            {isCorrect ? '✓ ¡Correcto!' : '✗ Incorrecto'}
+            {!isCorrect && (
+              <div className="correct-answer-text">
+                Respuesta correcta: {question.correcta.toUpperCase()}
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="navigation">
           <button 
             className="btn btn-secondary" 
             onClick={previousQuestion}
-            disabled={currentIndex === 0}
+            disabled={currentIndex === 0 || isPaused}
           >
             ← Anterior
           </button>
           <button 
             className="btn btn-primary" 
             onClick={nextQuestion}
-            disabled={!selectedAnswer}
+            disabled={!selectedAnswer || isPaused}
           >
             {currentIndex === questions.length - 1 ? 'Finalizar Test' : 'Siguiente →'}
           </button>
         </div>
+        
+        {isPaused && (
+          <div className="paused-overlay">
+            <h2>Test en pausa</h2>
+            <p>Haz clic en "Reanudar" para continuar</p>
+          </div>
+        )}
       </div>
       
       <div className="progress-container">

@@ -1,145 +1,200 @@
-# OPE Medicina Preventiva - Next.js
+# OPE Medicina Preventiva - Sistema de Estudio
 
-Sistema de estudio moderno para OPE Medicina Preventiva con 1512 preguntas, algoritmo de repetición espaciada y sincronización en la nube.
+Sistema completo de estudio para las Oposiciones de Medicina Preventiva y Salud Pública con 1512 preguntas y todas las funcionalidades de la aplicación original.
 
-## 🚀 Inicio Rápido
+## 🎯 Funcionalidades Implementadas
 
-### 1. Instalar dependencias
+### ✅ Funcionalidades Críticas
+- **Sistema de temporizador**: Configurable con pausar/reanudar
+- **Pausar/reanudar test**: Guarda el estado completo
+- **Feedback inmediato**: Muestra correcto/incorrecto al responder
+- **Historial completo**: Todos los tests con detalles
+
+### ✅ Análisis y Visualización
+- **Gráficos estadísticos**: Con Recharts (evolución, categorías, tiempos)
+- **Sistema de revisión**: Revisar respuestas con filtros
+- **Exportación CSV**: Descargar historial
+
+### ✅ Configuración y UX
+- **Configuración avanzada**: Preguntas (25-150), timer, feedback
+- **Menú navegación**: Header responsive 
+- **Sección Acerca de**: Info completa
+
+## 🚀 Deploy en Vercel - Paso a Paso
+
+### 1. Preparación Local (IMPORTANTE)
+
 ```bash
+# Generar package-lock.json (CRÍTICO)
 npm install
-# o
-yarn install
+
+# Verificar build local
+npm run build
+
+# Probar aplicación
+npm run start
 ```
 
-### 2. Configurar variables de entorno
+### 2. Subir a GitHub
+
 ```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin [tu-repo-url]
+git push -u origin main
+```
+
+### 3. Configurar Vercel
+
+1. **Crear cuenta** en [vercel.com](https://vercel.com)
+
+2. **Crear base de datos KV**:
+   - Dashboard → Storage → Create Database
+   - Elegir "KV" 
+   - Nombrar (ej: "ope-medicina-kv")
+   - Create
+
+3. **Importar proyecto**:
+   - New Project → Import Git Repository
+   - Seleccionar tu repo
+   - Framework: Next.js (auto-detectado)
+
+4. **Variables de entorno**:
+   - Las de KV se añaden automáticamente
+   - Agregar manualmente:
+     ```
+     NEXT_PUBLIC_APP_URL=https://[tu-app].vercel.app
+     ```
+
+5. **Deploy**:
+   - Click "Deploy"
+   - Esperar ~2-3 minutos
+
+### 4. Verificación Post-Deploy
+
+- Visitar tu URL
+- Probar crear un test
+- Verificar que se guarde el progreso
+
+## 🛠️ Desarrollo Local
+
+### Requisitos
+- Node.js >= 18.17.0
+- npm o yarn
+
+### Instalación
+
+```bash
+# Clonar
+git clone [tu-repo]
+cd ope-medicina-next
+
+# Instalar
+npm install
+
+# Variables de entorno
 cp .env.local.example .env.local
-# Editar .env.local con las credenciales de Vercel KV
+# Editar .env.local con credenciales KV
 ```
 
-### 3. Ejecutar en desarrollo
+`.env.local`:
+```
+KV_URL=redis://...
+KV_REST_API_URL=https://...
+KV_REST_API_TOKEN=...
+KV_REST_API_READ_ONLY_TOKEN=...
+```
+
+### Scripts
+
 ```bash
-npm run dev
-# o
-yarn dev
+npm run dev      # Desarrollo
+npm run build    # Producción
+npm run start    # Ejecutar build
+npm run lint     # Verificar código
 ```
 
-Abrir [http://localhost:3000](http://localhost:3000)
-
-## 📦 Deploy en Vercel
-
-### Opción A: Deploy con CLI
-```bash
-npm i -g vercel
-vercel
-```
-
-### Opción B: Deploy desde GitHub
-1. Push a GitHub
-2. Importar en Vercel Dashboard
-3. Configurar Vercel KV
-4. Deploy automático
-
-## 🏗️ Estructura del Proyecto
+## 📁 Estructura Completa
 
 ```
 ope-medicina-next/
-├── pages/
-│   ├── index.js          # Página principal
-│   ├── _app.js           # App wrapper
-│   └── api/              # API Routes
-│       ├── init.js       # Cargar progreso
-│       ├── questions.js  # Obtener preguntas
-│       ├── answer.js     # Guardar respuesta
-│       └── complete-test.js # Finalizar test
 ├── components/
-│   ├── HomeScreen.js     # Pantalla inicio
-│   ├── QuizScreen.js     # Pantalla test
-│   └── ResultsScreen.js  # Pantalla resultados
+│   ├── AboutScreen.js       # Acerca de
+│   ├── Header.js           # Navegación
+│   ├── HistoryScreen.js    # Historial
+│   ├── HomeScreen.js       # Inicio
+│   ├── QuizScreen.js       # Test
+│   ├── ResultsScreen.js    # Resultados
+│   ├── ReviewScreen.js     # Revisión
+│   ├── SettingsScreen.js   # Config
+│   ├── StatsScreen.js      # Estadísticas
+│   └── Timer.js           # Temporizador
 ├── lib/
-│   ├── kv-client.js      # Cliente Vercel KV
-│   └── quiz-logic.js     # Lógica del quiz
-├── public/
+│   ├── kv-client.js       # Persistencia KV
+│   └── quiz-logic.js      # Algoritmo preguntas
+├── pages/
+│   ├── api/
+│   │   ├── answer.js      # Guardar respuesta
+│   │   ├── complete-test.js # Completar test
+│   │   ├── init.js        # Inicialización
+│   │   └── questions.js   # Obtener preguntas
+│   ├── _app.js           # App wrapper
+│   └── index.js          # Página principal
+├── data/
 │   └── questions.json    # 1512 preguntas
-└── styles/
-    └── globals.css       # Estilos globales
+├── styles/
+│   └── globals.css       # Estilos
+├── .gitignore
+├── next.config.js        # Config Next.js
+├── package.json          # Dependencias
+└── README.md            # Este archivo
 ```
 
-## 🔧 Configuración de Vercel KV
+## 💾 Datos Persistidos
 
-1. En Vercel Dashboard → Storage → Create Database → KV
-2. Las variables de entorno se añaden automáticamente
-3. Redeploy después de crear la base de datos
+Vercel KV almacena:
+- **Progreso por pregunta**: Aciertos/fallos
+- **Estadísticas**: Tests, promedio, etc.
+- **Historial**: Todos los tests
+- **Configuración**: Preferencias usuario
+- **Estado test**: Para pausar/reanudar
 
-## 💡 Características
+## 🔧 Solución de Problemas
 
-- ✅ **Responsive**: Funciona en móvil, tablet y PC
-- ✅ **Sincronización**: Progreso compartido entre dispositivos
-- ✅ **Algoritmo inteligente**: Preguntas falladas aparecen más
-- ✅ **Sin autenticación**: Uso personal directo
-- ✅ **Estadísticas**: Seguimiento detallado del progreso
-- ✅ **Offline**: Funciona sin conexión (sin sincronización)
+### Build falla en Vercel
+- Verificar que subiste `package-lock.json`
+- Revisar versión Node.js >= 18.17.0
 
-## 🛠️ Desarrollo
+### KV no funciona
+- Verificar variables en Settings → Environment Variables
+- Re-deploy después de crear KV
 
-### Scripts disponibles
-```bash
-npm run dev      # Desarrollo con hot-reload
-npm run build    # Build de producción
-npm run start    # Ejecutar build de producción
-npm run lint     # Linting del código
-```
+### CORS errors
+- Solo en desarrollo local
+- En producción usa tu dominio
 
-### Variables de entorno
-- `KV_URL`: URL de Vercel KV
-- `KV_REST_API_URL`: API URL de KV
-- `KV_REST_API_TOKEN`: Token de escritura
-- `KV_REST_API_READ_ONLY_TOKEN`: Token de lectura
+### Preguntas no cargan
+- Verificar `/data/questions.json` existe
+- 1512 preguntas, ~881KB
 
-## 📊 API Routes
+## 📱 Características
 
-### GET /api/init
-Obtiene progreso y estadísticas del usuario
+- **Responsive**: Mobile-first design
+- **PWA ready**: Funciona offline (sin sync)
+- **Algoritmo inteligente**: Repetición espaciada
+- **Sin login**: Uso personal directo
+- **Export/Import**: CSV para backup
 
-### GET /api/questions
-Devuelve 100 preguntas seleccionadas con algoritmo de peso
+## 🚨 Importante para Deploy
 
-### POST /api/answer
-Guarda respuesta individual
-```json
-{
-  "question_id": 123,
-  "answer": "b",
-  "is_correct": true
-}
-```
+1. **SIEMPRE** ejecutar `npm install` antes de subir
+2. El `package-lock.json` es CRÍTICO
+3. Variables KV se configuran ANTES del deploy
+4. CORS está configurado para producción
 
-### POST /api/complete-test
-Guarda resultado completo del test
-```json
-{
-  "start_time": "2024-01-01T10:00:00Z",
-  "end_time": "2024-01-01T11:00:00Z",
-  "score": 85,
-  "correct": 85,
-  "total": 100
-}
-```
+---
 
-## 🐛 Solución de Problemas
+💪 ¡Éxito en las oposiciones!
 
-### Las preguntas no cargan
-- Verificar que `public/questions.json` existe
-- Revisar la consola del navegador
-
-### Progreso no se guarda
-- Verificar variables de entorno KV
-- Comprobar conexión a internet
-
-### Error 500 en API
-- Revisar logs en Vercel Dashboard
-- Verificar configuración de KV
-
-## 📝 Licencia
-
-Uso personal - Sistema de estudio para OPE
+📧 Soporte: [crear issue en GitHub]

@@ -6,10 +6,12 @@ export default async function handler(req, res) {
       const storage = new QuizStorage();
       const progress = await storage.getUserProgress();
       const stats = await storage.getUserStats();
+      const config = await storage.getUserConfig();
       
       res.status(200).json({
         progress,
         stats,
+        config,
         initialized: true
       });
     } catch (error) {
@@ -23,6 +25,13 @@ export default async function handler(req, res) {
           average_score: 0,
           last_test: null,
           total_questions_seen: 0
+        },
+        config: {
+          timer_enabled: true,
+          timer_minutes: 120,
+          show_feedback: true,
+          show_statistics: true,
+          questions_per_test: 100
         },
         initialized: true
       });

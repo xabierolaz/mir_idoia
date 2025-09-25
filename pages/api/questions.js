@@ -9,14 +9,18 @@ export default async function handler(req, res) {
       const storage = new QuizStorage();
       const progress = await storage.getUserProgress();
       
-      // Seleccionar 100 preguntas con algoritmo de peso
-      const selectedQuestions = selectWeightedQuestions(questionsData, progress, 100);
+      // Obtener configuración del usuario
+      const config = await storage.getUserConfig();
+      const numQuestions = config.questions_per_test || 100;
+      
+      // Seleccionar preguntas con algoritmo de peso según configuración
+      const selectedQuestions = selectWeightedQuestions(questionsData, progress, numQuestions);
       
       res.status(200).json(selectedQuestions);
     } catch (error) {
       console.error('API questions error:', error);
       
-      // Si hay error, devolver selección aleatoria simple
+      // Si hay error, devolver selección aleatoria simple con valor por defecto
       const shuffled = [...questionsData].sort(() => Math.random() - 0.5);
       res.status(200).json(shuffled.slice(0, 100));
     }

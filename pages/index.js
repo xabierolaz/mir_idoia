@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import Header from '../components/Header';
 import HomeScreen from '../components/HomeScreen';
 import QuizScreen from '../components/QuizScreen';
 import ResultsScreen from '../components/ResultsScreen';
+import HistoryScreen from '../components/HistoryScreen';
+import StatsScreen from '../components/StatsScreen';
+import ReviewScreen from '../components/ReviewScreen';
+import SettingsScreen from '../components/SettingsScreen';
+import AboutScreen from '../components/AboutScreen';
 
 export default function Home() {
   const [mode, setMode] = useState('loading');
   const [progress, setProgress] = useState({});
   const [stats, setStats] = useState({});
   const [testResults, setTestResults] = useState(null);
+  const [config, setConfig] = useState({});
   
   useEffect(() => {
     initializeApp();
@@ -25,6 +32,9 @@ export default function Home() {
         average_score: 0,
         last_test: null,
         total_questions_seen: 0
+      });
+      setConfig(data.config || {
+        questions_per_test: 100
       });
       
       setMode('home');
@@ -47,13 +57,33 @@ export default function Home() {
   };
   
   const handleShowStats = () => {
-    // Por ahora, mostrar alerta
-    alert('Estadísticas detalladas próximamente');
+    setMode('history');
+  };
+  
+  const handleShowDetailedStats = () => {
+    setMode('stats');
+  };
+  
+  const handleReviewTest = () => {
+    setMode('review');
+  };
+  
+  const handleShowSettings = () => {
+    setMode('settings');
   };
   
   const handleBackHome = () => {
     setMode('home');
     initializeApp();
+  };
+  
+  const handleNavigation = (newMode) => {
+    if (['quiz', 'results', 'review'].includes(mode) && newMode !== mode) {
+      if (!confirm('¿Estás seguro de que quieres salir? Se perderá el progreso actual.')) {
+        return;
+      }
+    }
+    setMode(newMode);
   };
   
   const renderContent = () => {
@@ -71,8 +101,11 @@ export default function Home() {
           <HomeScreen 
             progress={progress}
             stats={stats}
+            config={config}
             onStartQuiz={handleStartQuiz}
             onShowStats={handleShowStats}
+            onShowDetailedStats={handleShowDetailedStats}
+            onShowSettings={handleShowSettings}
           />
         );
         
@@ -89,6 +122,44 @@ export default function Home() {
             results={testResults}
             onHome={handleBackHome}
             onNewTest={handleStartQuiz}
+            onReview={handleReviewTest}
+          />
+        );
+        
+      case 'history':
+        return (
+          <HistoryScreen
+            onBack={handleBackHome}
+          />
+        );
+        
+      case 'stats':
+        return (
+          <StatsScreen
+            onBack={handleBackHome}
+          />
+        );
+        
+      case 'review':
+        return (
+          <ReviewScreen
+            questions={testResults?.questions || []}
+            answers={testResults?.answers || {}}
+            onBack={() => setMode('results')}
+          />
+        );
+        
+      case 'settings':
+        return (
+          <SettingsScreen
+            onBack={handleBackHome}
+          />
+        );
+        
+      case 'about':
+        return (
+          <AboutScreen
+            onBack={handleBackHome}
           />
         );
         
@@ -107,6 +178,12 @@ export default function Home() {
       </Head>
       
       <main>
+        {mode !== 'loading' && mode !== 'quiz' && (
+          <Header 
+            currentMode={mode}
+            onNavigate={handleNavigation}
+          />
+        )}
         {renderContent()}
       </main>
     </>

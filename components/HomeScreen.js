@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function HomeScreen({ progress, stats, onStartQuiz, onShowStats }) {
+export default function HomeScreen({ progress, stats, config, onStartQuiz, onShowStats, onShowDetailedStats, onShowSettings }) {
   const totalQuestions = 1512;
   const studiedQuestions = Object.keys(progress).filter(key => key.startsWith('q:')).length;
   
@@ -48,11 +48,19 @@ export default function HomeScreen({ progress, stats, onStartQuiz, onShowStats }
         </div>
         
         <button className="btn btn-primary" onClick={onStartQuiz}>
-          Comenzar Test (100 preguntas)
+          Comenzar Test ({config?.questions_per_test || 100} preguntas)
         </button>
         
         <button className="btn btn-secondary" onClick={onShowStats}>
+          Ver Historial de Tests
+        </button>
+        
+        <button className="btn btn-secondary" onClick={onShowDetailedStats}>
           Ver Estadísticas Detalladas
+        </button>
+        
+        <button className="btn btn-secondary" onClick={onShowSettings}>
+          Configuración
         </button>
       </div>
     </div>

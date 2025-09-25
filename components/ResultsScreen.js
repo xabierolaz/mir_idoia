@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ResultsScreen({ results, onHome, onNewTest }) {
+export default function ResultsScreen({ results, onHome, onNewTest, onReview }) {
   const { correct, total, score, duration, questions, answers } = results;
   
   // Calcular resultados por categoría
@@ -99,6 +99,10 @@ export default function ResultsScreen({ results, onHome, onNewTest }) {
         
         <button className="btn btn-primary" onClick={onHome}>
           Volver al inicio
+        </button>
+        
+        <button className="btn btn-secondary" onClick={onReview}>
+          Revisar respuestas
         </button>
         
         <button className="btn btn-secondary" onClick={onNewTest}>
