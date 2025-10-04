@@ -4,14 +4,24 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const storage = new QuizStorage();
-      const progress = await storage.getUserProgress();
-      const stats = await storage.getUserStats();
-      const config = await storage.getUserConfig();
-      
+      const [progress, stats, config, savedState] = await Promise.all([
+        storage.getUserProgress(),
+        storage.getUserStats(),
+        storage.getUserConfig(),
+        storage.getTestState()
+      ]);
+
+      const hasSavedTest = Boolean(
+        savedState &&
+        Array.isArray(savedState.questions) &&
+        savedState.questions.length > 0
+      );
+
       res.status(200).json({
         progress,
         stats,
         config,
+        has_saved_test: hasSavedTest,
         initialized: true
       });
     } catch (error) {

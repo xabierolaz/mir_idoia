@@ -12,7 +12,7 @@ export default function QuizScreen({ onComplete }) {
   const [startTime] = useState(new Date());
   const [isPaused, setIsPaused] = useState(false);
   const [config, setConfig] = useState({});
-  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackState, setFeedbackState] = useState({}); // { questionId: { show: true, isCorrect: boolean } }
   const [elapsedTime, setElapsedTime] = useState(0);
   
   useEffect(() => {
@@ -69,6 +69,8 @@ export default function QuizScreen({ onComplete }) {
   };
   
   const selectAnswer = async (option) => {
+    if (isPaused) return; // No permitir responder si está pausado
+    
     const question = questions[currentIndex];
     const isCorrect = option === question.correcta;
     
@@ -79,15 +81,15 @@ export default function QuizScreen({ onComplete }) {
     };
     setAnswers(newAnswers);
     
-    // Mostrar feedback si está habilitado
-    if (config.show_feedback) {
-      setShowFeedback(true);
+    // MOSTRAR FEEDBACK INMEDIATO si está habilitado
+    if (config.show_feedback !== false) { // Por defecto true
+      setFeedbackState({
+        ...feedbackState,
+        [question.id]: { show: true, isCorrect }
+      });
     }
     
-    // Guardar estado del test
-    await saveTestState(newAnswers);
-    
-    // Guardar respuesta en el servidor
+    // Guardar respuesta en Vercel KV INMEDIATAMENTE
     try {
       await fetch('/api/answer', {
         method: 'POST',
@@ -98,9 +100,15 @@ export default function QuizScreen({ onComplete }) {
           is_correct: isCorrect
         })
       });
+      
+      console.log(`✅ Respuesta guardada en Vercel: Q${question.id} = ${option} (${isCorrect ? 'CORRECTA' : 'INCORRECTA'})`);
     } catch (error) {
-      console.error('Error saving answer:', error);
+      console.error('❌ Error saving answer to Vercel:', error);
+      // Continuar aunque falle el guardado
     }
+    
+    // Guardar estado del test
+    await saveTestState(newAnswers);
   };
   
   const saveTestState = async (currentAnswers = answers) => {
@@ -112,23 +120,46 @@ export default function QuizScreen({ onComplete }) {
       startTime,
       isPaused
     };
-    await storage.saveTestState(state);
+    
+    try {
+      await storage.saveTestState(state);
+    } catch (error) {
+      console.error('Error saving test state:', error);
+    }
   };
   
   const togglePause = async () => {
-    setIsPaused(!isPaused);
+    const newPausedState = !isPaused;
+    setIsPaused(newPausedState);
     await saveTestState();
+    
+    // Limpiar feedback al pausar
+    if (newPausedState) {
+      setFeedbackState({});
+    }
   };
   
   const previousQuestion = () => {
-    if (currentIndex > 0) {
-      setShowFeedback(false);
+    if (currentIndex > 0 && !isPaused) {
+      // Limpiar feedback de la pregunta actual
+      const currentQuestion = questions[currentIndex];
+      const newFeedback = { ...feedbackState };
+      delete newFeedback[currentQuestion.id];
+      setFeedbackState(newFeedback);
+      
       setCurrentIndex(currentIndex - 1);
     }
   };
   
   const nextQuestion = () => {
-    setShowFeedback(false);
+    if (isPaused) return;
+    
+    // Limpiar feedback de la pregunta actual
+    const currentQuestion = questions[currentIndex];
+    const newFeedback = { ...feedbackState };
+    delete newFeedback[currentQuestion.id];
+    setFeedbackState(newFeedback);
+    
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -153,7 +184,7 @@ export default function QuizScreen({ onComplete }) {
     const score = Math.round((correct / questions.length) * 100);
     const endTime = new Date();
     
-    // Guardar test completo
+    // Guardar test completo en Vercel
     try {
       await fetch('/api/complete-test', {
         method: 'POST',
@@ -167,8 +198,10 @@ export default function QuizScreen({ onComplete }) {
           answers
         })
       });
+      
+      console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${questions.length})`);
     } catch (error) {
-      console.error('Error saving test:', error);
+      console.error('❌ Error saving test to Vercel:', error);
     }
     
     // Limpiar estado guardado
@@ -185,7 +218,7 @@ export default function QuizScreen({ onComplete }) {
     });
   };
   
-  // Auto-guardar estado cada vez que cambia
+  // Auto-guardar estado y manejar timer
   useEffect(() => {
     if (questions.length > 0 && !loading) {
       const interval = setInterval(() => {
@@ -216,7 +249,7 @@ export default function QuizScreen({ onComplete }) {
   const question = questions[currentIndex];
   const selectedAnswer = answers[question.id];
   const progress = ((currentIndex + 1) / questions.length) * 100;
-  const isCorrect = selectedAnswer && selectedAnswer === question.correcta;
+  const questionFeedback = feedbackState[question.id];
   
   return (
     <div className="container fade-in">
@@ -233,10 +266,13 @@ export default function QuizScreen({ onComplete }) {
           className={`btn ${isPaused ? 'btn-success' : 'btn-warning'}`}
           onClick={togglePause}
         >
-          {isPaused ? '▶ Reanudar' : '‖ Pausar'}
+          {isPaused ? '▶ Reanudar' : '⏸ Pausar'}
         </button>
         <span className="test-status">
           {isPaused ? 'TEST EN PAUSA' : 'TEST EN CURSO'}
+        </span>
+        <span className="auto-save-indicator">
+          💾 Guardado automático en Vercel
         </span>
       </div>
       
@@ -260,13 +296,16 @@ export default function QuizScreen({ onComplete }) {
             const isCorrectOption = key === question.correcta;
             
             let optionClass = 'option';
-            if (showFeedback && isSelected) {
-              optionClass += isCorrect ? ' correct' : ' incorrect';
-            }
-            if (showFeedback && !isSelected && isCorrectOption) {
-              optionClass += ' correct-answer';
-            }
-            if (!showFeedback && isSelected) {
+            
+            // Si hay feedback visible para esta pregunta
+            if (questionFeedback && questionFeedback.show) {
+              if (isSelected) {
+                optionClass += questionFeedback.isCorrect ? ' correct' : ' incorrect';
+              }
+              if (!isSelected && isCorrectOption) {
+                optionClass += ' correct-answer';
+              }
+            } else if (isSelected) {
               optionClass += ' selected';
             }
             
@@ -274,8 +313,11 @@ export default function QuizScreen({ onComplete }) {
               <div
                 key={key}
                 className={optionClass}
-                onClick={() => !showFeedback && !isPaused && selectAnswer(key)}
-                style={{ cursor: showFeedback || isPaused ? 'default' : 'pointer' }}
+                onClick={() => !questionFeedback?.show && selectAnswer(key)}
+                style={{ 
+                  cursor: (questionFeedback?.show || isPaused) ? 'default' : 'pointer',
+                  pointerEvents: (questionFeedback?.show || isPaused) ? 'none' : 'auto'
+                }}
               >
                 <span className="option-letter">{key.toUpperCase()})</span>
                 {value}
@@ -284,14 +326,25 @@ export default function QuizScreen({ onComplete }) {
           })}
         </div>
         
-        {showFeedback && (
-          <div className={`feedback-message ${isCorrect ? 'correct' : 'incorrect'}`}>
-            {isCorrect ? '✓ ¡Correcto!' : '✗ Incorrecto'}
-            {!isCorrect && (
-              <div className="correct-answer-text">
-                Respuesta correcta: {question.correcta.toUpperCase()}
-              </div>
+        {/* FEEDBACK INMEDIATO */}
+        {questionFeedback && questionFeedback.show && (
+          <div className={`feedback-message ${questionFeedback.isCorrect ? 'correct' : 'incorrect'}`}>
+            {questionFeedback.isCorrect ? (
+              <>
+                <strong>✅ ¡Correcto!</strong>
+                <div className="feedback-explanation">Has seleccionado la respuesta correcta.</div>
+              </>
+            ) : (
+              <>
+                <strong>❌ Incorrecto</strong>
+                <div className="feedback-explanation">
+                  La respuesta correcta es: <strong>{question.correcta.toUpperCase()}</strong>
+                </div>
+              </>
             )}
+            <div className="auto-save-notice">
+              💾 Respuesta guardada automáticamente en Vercel
+            </div>
           </div>
         )}
         
@@ -315,6 +368,7 @@ export default function QuizScreen({ onComplete }) {
         {isPaused && (
           <div className="paused-overlay">
             <h2>Test en pausa</h2>
+            <p>Tu progreso está guardado en Vercel</p>
             <p>Haz clic en "Reanudar" para continuar</p>
           </div>
         )}
