@@ -198,3 +198,4 @@ Vercel KV almacena:
 💪 ¡Éxito en las oposiciones!
 
 📧 Soporte: [crear issue en GitHub]# Trigger Vercel redeploy
+# Force Vercel redeploy Sun Oct  5 11:24:57 CEST 2025
