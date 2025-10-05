@@ -197,4 +197,4 @@ Vercel KV almacena:
 
 💪 ¡Éxito en las oposiciones!
 
-📧 Soporte: [crear issue en GitHub]
+📧 Soporte: [crear issue en GitHub]# Trigger Vercel redeploy
