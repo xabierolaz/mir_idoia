@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Timer from './Timer';
 import { QuizStorage } from '../lib/kv-client';
+import { validateAnswer, validateAnswers } from '../lib/answer-validation';
 
 const storage = new QuizStorage();
 
@@ -72,7 +73,12 @@ export default function QuizScreen({ onComplete }) {
     if (isPaused) return; // No permitir responder si está pausado
     
     const question = questions[currentIndex];
-    const isCorrect = option === question.correcta;
+    
+    // USAR VALIDACIÓN CENTRALIZADA
+    const isCorrect = validateAnswer(option, question.correcta);
+    
+    // Log para debugging (se puede remover en producción)
+    console.log(`🔍 Validación: Pregunta ${question.id}, Usuario: "${option}", Correcta: "${question.correcta}", ¿Correcta?: ${isCorrect}`);
     
     // Actualizar respuestas locales
     const newAnswers = {
@@ -173,13 +179,16 @@ export default function QuizScreen({ onComplete }) {
   };
   
   const finishTest = async () => {
-    // Calcular resultados
-    let correct = 0;
-    questions.forEach(question => {
-      if (answers[question.id] === question.correcta) {
-        correct++;
-      }
-    });
+    // USAR VALIDACIÓN CENTRALIZADA
+    const results = validateAnswers(questions, answers);
+    const { correct, detailedResults } = results;
+    
+    // Log completo del análisis final
+    console.log('📊 ANÁLISIS FINAL DE RESPUESTAS:');
+    console.log(`Total preguntas: ${questions.length}`);
+    console.log(`Preguntas respondidas: ${detailedResults.filter(r => r.userAnswer !== null).length}`);
+    console.log(`Respuestas correctas: ${correct}`);
+    console.log('Detalle por pregunta:', detailedResults);
     
     const score = Math.round((correct / questions.length) * 100);
     const endTime = new Date();

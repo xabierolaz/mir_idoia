@@ -3,6 +3,22 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
+  // Optimizaciones para archivos grandes y build performance
+  experimental: {
+    largePageDataBytes: 128 * 1000, // 128KB
+  },
+  
+  // Configuración de webpack para manejar archivos grandes
+  webpack: (config, { isServer }) => {
+    // Optimizar el manejo de archivos JSON grandes
+    config.module.rules.push({
+      test: /\.json$/,
+      type: 'json',
+    });
+    
+    return config;
+  },
+  
   // Configuración de CORS - restrictivo en producción
   async headers() {
     const isDevelopment = process.env.NODE_ENV === 'development';

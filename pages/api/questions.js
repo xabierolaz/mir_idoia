@@ -1,10 +1,13 @@
 import { QuizStorage } from '../../lib/kv-client';
 import { selectWeightedQuestions } from '../../lib/quiz-logic';
-import questionsData from '../../data/questions.json';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
+      // Cargar datos dinámicamente para evitar problemas de build
+      const questionsModule = await import('../../data/questions.json');
+      const questionsData = questionsModule.default;
+      
       // Obtener progreso actual del usuario
       const storage = new QuizStorage();
       const progress = await storage.getUserProgress();
@@ -20,9 +23,16 @@ export default async function handler(req, res) {
     } catch (error) {
       console.error('API questions error:', error);
       
-      // Si hay error, devolver selección aleatoria simple con valor por defecto
-      const shuffled = [...questionsData].sort(() => Math.random() - 0.5);
-      res.status(200).json(shuffled.slice(0, 100));
+      try {
+        // Fallback: cargar datos y hacer selección simple
+        const questionsModule = await import('../../data/questions.json');
+        const questionsData = questionsModule.default;
+        const shuffled = [...questionsData].sort(() => Math.random() - 0.5);
+        res.status(200).json(shuffled.slice(0, 100));
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+        res.status(500).json({ error: 'Error loading questions' });
+      }
     }
   } else {
     res.setHeader('Allow', ['GET']);

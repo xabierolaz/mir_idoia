@@ -1,19 +1,13 @@
 import React, { useState } from 'react';
+import { validateAnswer, filterQuestionsByAnswer } from '../lib/answer-validation';
 
 export default function ReviewScreen({ questions, answers, onBack }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [filterMode, setFilterMode] = useState('all'); // all, correct, incorrect
   
-  // Filtrar preguntas según el modo
+  // Filtrar preguntas según el modo usando validación centralizada
   const getFilteredQuestions = () => {
-    switch (filterMode) {
-      case 'correct':
-        return questions.filter(q => answers[q.id] === q.correcta);
-      case 'incorrect':
-        return questions.filter(q => answers[q.id] !== q.correcta);
-      default:
-        return questions;
-    }
+    return filterQuestionsByAnswer(questions, answers, filterMode);
   };
   
   const filteredQuestions = getFilteredQuestions();
@@ -33,7 +27,7 @@ export default function ReviewScreen({ questions, answers, onBack }) {
   }
   
   const userAnswer = answers[question.id];
-  const isCorrect = userAnswer === question.correcta;
+  const isCorrect = validateAnswer(userAnswer, question.correcta);
   
   const formatCategory = (category) => {
     const categoryNames = {
@@ -89,13 +83,13 @@ export default function ReviewScreen({ questions, answers, onBack }) {
             className={`filter-btn ${filterMode === 'correct' ? 'active' : ''}`}
             onClick={() => handleFilterChange('correct')}
           >
-            Correctas ({questions.filter(q => answers[q.id] === q.correcta).length})
+            Correctas ({filterQuestionsByAnswer(questions, answers, 'correct').length})
           </button>
           <button 
             className={`filter-btn ${filterMode === 'incorrect' ? 'active' : ''}`}
             onClick={() => handleFilterChange('incorrect')}
           >
-            Incorrectas ({questions.filter(q => answers[q.id] !== q.correcta).length})
+            Incorrectas ({filterQuestionsByAnswer(questions, answers, 'incorrect').length})
           </button>
         </div>
         
@@ -176,7 +170,7 @@ export default function ReviewScreen({ questions, answers, onBack }) {
           <h3>Navegación rápida</h3>
           <div className="question-buttons">
             {filteredQuestions.map((q, index) => {
-              const qIsCorrect = answers[q.id] === q.correcta;
+              const qIsCorrect = validateAnswer(answers[q.id], q.correcta);
               return (
                 <button
                   key={index}

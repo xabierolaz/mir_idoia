@@ -1,15 +1,19 @@
 import React from 'react';
+import { validateAnswer } from '../lib/answer-validation';
 
 export default function ResultsScreen({ results, onHome, onNewTest, onReview }) {
   const { correct, total, score, duration, questions, answers } = results;
   
-  // Calcular resultados por categoría
+  // Calcular resultados por categoría con VALIDACIÓN ROBUSTA
   const calculateCategoryResults = () => {
     const byCategory = {};
     
     questions.forEach(question => {
       const userAnswer = answers[question.id];
-      const isCorrect = userAnswer === question.correcta;
+      
+      // USAR VALIDACIÓN CENTRALIZADA
+      const isCorrect = validateAnswer(userAnswer, question.correcta);
+      
       const category = question.categoria || 'otros';
       
       if (!byCategory[category]) {
