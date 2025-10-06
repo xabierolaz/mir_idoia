@@ -15,6 +15,8 @@ export default function QuizScreen({ onComplete }) {
   const [config, setConfig] = useState({});
   const [feedbackState, setFeedbackState] = useState({}); // { questionId: { show: true, isCorrect: boolean } }
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [invalidQuestions, setInvalidQuestions] = useState(new Set()); // Track invalid questions
+  const [extraQuestionsLoaded, setExtraQuestionsLoaded] = useState(false);
   
   useEffect(() => {
     loadInitialData();
@@ -34,6 +36,7 @@ export default function QuizScreen({ onComplete }) {
         setCurrentIndex(savedState.currentIndex || 0);
         setAnswers(savedState.answers || {});
         setElapsedTime(savedState.elapsedTime || 0);
+        setInvalidQuestions(new Set(savedState.invalidQuestions || []));
         setLoading(false);
       } else {
         // Cargar nuevas preguntas
@@ -95,28 +98,83 @@ export default function QuizScreen({ onComplete }) {
       });
     }
     
-    // Guardar respuesta en Vercel KV INMEDIATAMENTE
-    try {
-      await fetch('/api/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question_id: question.id,
-          answer: option,
-          is_correct: isCorrect
-        })
-      });
-      
-      console.log(`✅ Respuesta guardada en Vercel: Q${question.id} = ${option} (${isCorrect ? 'CORRECTA' : 'INCORRECTA'})`);
-    } catch (error) {
-      console.error('❌ Error saving answer to Vercel:', error);
-      // Continuar aunque falle el guardado
+    // Guardar respuesta en Vercel KV SOLO SI NO ES PREGUNTA INVÁLIDA
+    if (!invalidQuestions.has(question.id)) {
+      try {
+        await fetch('/api/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question_id: question.id,
+            answer: option,
+            is_correct: isCorrect
+          })
+        });
+        
+        console.log(`✅ Respuesta guardada en Vercel: Q${question.id} = ${option} (${isCorrect ? 'CORRECTA' : 'INCORRECTA'})`);
+      } catch (error) {
+        console.error('❌ Error saving answer to Vercel:', error);
+        // Continuar aunque falle el guardado
+      }
+    } else {
+      console.log(`🚫 Pregunta ${question.id} marcada como inválida - no se guardará en estadísticas`);
     }
     
     // Guardar estado del test
     await saveTestState(newAnswers);
   };
   
+  const toggleInvalidQuestion = async (questionId) => {
+    const newInvalidQuestions = new Set(invalidQuestions);
+    
+    if (newInvalidQuestions.has(questionId)) {
+      newInvalidQuestions.delete(questionId);
+    } else {
+      newInvalidQuestions.add(questionId);
+    }
+    
+    setInvalidQuestions(newInvalidQuestions);
+    
+    // Marcar pregunta como inválida en la base de datos para futuro reporte
+    try {
+      await fetch('/api/mark-invalid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question_id: questionId,
+          is_invalid: newInvalidQuestions.has(questionId)
+        })
+      });
+      
+      console.log(`${newInvalidQuestions.has(questionId) ? '🚫' : '✅'} Pregunta ${questionId} marcada como ${newInvalidQuestions.has(questionId) ? 'inválida' : 'válida'}`);
+    } catch (error) {
+      console.error('Error marking question as invalid:', error);
+    }
+    
+    // Guardar estado actualizado
+    await saveTestState();
+    
+    // Si necesitamos cargar preguntas extra y no lo hemos hecho aún
+    if (newInvalidQuestions.size > 0 && !extraQuestionsLoaded) {
+      await loadExtraQuestions();
+    }
+  };
+  
+  const loadExtraQuestions = async () => {
+    try {
+      const response = await fetch(`/api/questions?extra=${invalidQuestions.size}`);
+      const extraQuestions = await response.json();
+      
+      // Agregar preguntas extra al final
+      setQuestions(prevQuestions => [...prevQuestions, ...extraQuestions]);
+      setExtraQuestionsLoaded(true);
+      
+      console.log(`📚 Cargadas ${extraQuestions.length} preguntas extra para compensar inválidas`);
+    } catch (error) {
+      console.error('Error loading extra questions:', error);
+    }
+  };
+
   const saveTestState = async (currentAnswers = answers) => {
     const state = {
       questions,
@@ -124,7 +182,8 @@ export default function QuizScreen({ onComplete }) {
       answers: currentAnswers,
       elapsedTime,
       startTime,
-      isPaused
+      isPaused,
+      invalidQuestions: Array.from(invalidQuestions)
     };
     
     try {
@@ -179,18 +238,32 @@ export default function QuizScreen({ onComplete }) {
   };
   
   const finishTest = async () => {
-    // USAR VALIDACIÓN CENTRALIZADA
-    const results = validateAnswers(questions, answers);
+    // Filtrar preguntas válidas para cálculos finales
+    const validQuestions = questions.filter(q => !invalidQuestions.has(q.id));
+    const validAnswers = {};
+    
+    // Solo incluir respuestas de preguntas válidas
+    validQuestions.forEach(q => {
+      if (answers[q.id]) {
+        validAnswers[q.id] = answers[q.id];
+      }
+    });
+    
+    // USAR VALIDACIÓN CENTRALIZADA solo con preguntas válidas
+    const results = validateAnswers(validQuestions, validAnswers);
     const { correct, detailedResults } = results;
     
     // Log completo del análisis final
     console.log('📊 ANÁLISIS FINAL DE RESPUESTAS:');
     console.log(`Total preguntas: ${questions.length}`);
-    console.log(`Preguntas respondidas: ${detailedResults.filter(r => r.userAnswer !== null).length}`);
+    console.log(`Preguntas válidas: ${validQuestions.length}`);
+    console.log(`Preguntas inválidas: ${invalidQuestions.size}`);
+    console.log(`Preguntas respondidas (válidas): ${detailedResults.filter(r => r.userAnswer !== null).length}`);
     console.log(`Respuestas correctas: ${correct}`);
     console.log('Detalle por pregunta:', detailedResults);
+    console.log('Preguntas marcadas como inválidas:', Array.from(invalidQuestions));
     
-    const score = Math.round((correct / questions.length) * 100);
+    const score = validQuestions.length > 0 ? Math.round((correct / validQuestions.length) * 100) : 0;
     const endTime = new Date();
     
     // Guardar test completo en Vercel
@@ -203,12 +276,15 @@ export default function QuizScreen({ onComplete }) {
           end_time: endTime.toISOString(),
           score,
           correct,
-          total: questions.length,
-          answers
+          total: validQuestions.length,
+          total_questions_shown: questions.length,
+          invalid_questions: Array.from(invalidQuestions),
+          answers: validAnswers,
+          all_answers: answers
         })
       });
       
-      console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${questions.length})`);
+      console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${validQuestions.length})`);
     } catch (error) {
       console.error('❌ Error saving test to Vercel:', error);
     }
@@ -218,12 +294,14 @@ export default function QuizScreen({ onComplete }) {
     
     // Pasar resultados al componente padre
     onComplete({
-      questions,
-      answers,
+      questions: validQuestions,
+      answers: validAnswers,
       correct,
-      total: questions.length,
+      total: validQuestions.length,
       score,
-      duration: Math.round((endTime - startTime) / 1000 / 60)
+      duration: Math.round((endTime - startTime) / 1000 / 60),
+      invalidQuestions: Array.from(invalidQuestions),
+      totalQuestionsShown: questions.length
     });
   };
   
@@ -257,8 +335,11 @@ export default function QuizScreen({ onComplete }) {
   
   const question = questions[currentIndex];
   const selectedAnswer = answers[question.id];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
+  const validQuestionsCount = questions.filter(q => !invalidQuestions.has(q.id)).length;
+  const currentValidIndex = questions.slice(0, currentIndex + 1).filter(q => !invalidQuestions.has(q.id)).length;
+  const progress = validQuestionsCount > 0 ? (currentValidIndex / validQuestionsCount) * 100 : 0;
   const questionFeedback = feedbackState[question.id];
+  const isCurrentQuestionInvalid = invalidQuestions.has(question.id);
   
   return (
     <div className="container fade-in">
@@ -289,14 +370,43 @@ export default function QuizScreen({ onComplete }) {
         <div className="question-header">
           <span className="question-number">
             Pregunta {currentIndex + 1} de {questions.length}
+            {invalidQuestions.size > 0 && (
+              <span className="valid-count">
+                ({validQuestionsCount} válidas{invalidQuestions.size > 0 ? `, ${invalidQuestions.size} inválidas` : ''})
+              </span>
+            )}
           </span>
           <span className="category-tag">
             {formatCategory(question.categoria)}
           </span>
+          {isCurrentQuestionInvalid && (
+            <span className="invalid-tag">
+              🚫 INVÁLIDA
+            </span>
+          )}
         </div>
         
         <div className="question-text">
           {question.pregunta}
+        </div>
+        
+        <div className="invalid-question-control">
+          <label className="invalid-checkbox-label">
+            <input
+              type="checkbox"
+              checked={invalidQuestions.has(question.id)}
+              onChange={() => toggleInvalidQuestion(question.id)}
+              disabled={isPaused}
+              className="invalid-checkbox"
+            />
+            <span className="checkmark">🚫</span>
+            <span className="invalid-text">Marcar como pregunta inválida</span>
+          </label>
+          {invalidQuestions.has(question.id) && (
+            <div className="invalid-notice">
+              ⚠️ Esta pregunta no contará en las estadísticas ni en el resultado final
+            </div>
+          )}
         </div>
         
         <div className="options">
@@ -385,12 +495,22 @@ export default function QuizScreen({ onComplete }) {
       
       <div className="progress-container">
         <div className="progress-text">
-          <span>Progreso del test</span>
+          <span>
+            Progreso del test 
+            {invalidQuestions.size > 0 && (
+              <small> (solo preguntas válidas)</small>
+            )}
+          </span>
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
+        {invalidQuestions.size > 0 && (
+          <div className="progress-note">
+            📊 {currentValidIndex} de {validQuestionsCount} preguntas válidas respondidas
+          </div>
+        )}
       </div>
     </div>
   );

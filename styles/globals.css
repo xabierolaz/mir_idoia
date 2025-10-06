@@ -1798,3 +1798,92 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* Estilos para preguntas inválidas */
+.invalid-question-control {
+  margin: 15px 0;
+  padding: 12px;
+  background: #fef3f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.invalid-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.invalid-checkbox {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.invalid-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.invalid-checkbox:disabled + .checkmark + .invalid-text {
+  opacity: 0.5;
+}
+
+.checkmark {
+  font-size: 16px;
+}
+
+.invalid-text {
+  user-select: none;
+}
+
+.invalid-notice {
+  margin-top: 8px;
+  padding: 8px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.valid-count {
+  font-size: 12px;
+  color: var(--text-light);
+  font-weight: normal;
+  margin-left: 5px;
+}
+
+.invalid-tag {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #fca5a5;
+}
+
+.progress-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-light);
+  text-align: center;
+}
+
+/* Responsive para preguntas inválidas */
+@media (max-width: 640px) {
+  .invalid-checkbox-label {
+    font-size: 13px;
+  }
+  
+  .invalid-notice {
+    font-size: 11px;
+  }
+}
