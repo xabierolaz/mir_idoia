@@ -16,7 +16,6 @@ export default function QuizScreen({ onComplete }) {
   const [feedbackState, setFeedbackState] = useState({}); // { questionId: { show: true, isCorrect: boolean } }
   const [elapsedTime, setElapsedTime] = useState(0);
   const [invalidQuestions, setInvalidQuestions] = useState(new Set()); // Track invalid questions
-  const [extraQuestionsLoaded, setExtraQuestionsLoaded] = useState(false);
   
   useEffect(() => {
     loadInitialData();
@@ -124,54 +123,88 @@ export default function QuizScreen({ onComplete }) {
     await saveTestState(newAnswers);
   };
   
-  const toggleInvalidQuestion = async (questionId) => {
-    const newInvalidQuestions = new Set(invalidQuestions);
-    
-    if (newInvalidQuestions.has(questionId)) {
-      newInvalidQuestions.delete(questionId);
-    } else {
-      newInvalidQuestions.add(questionId);
+  const markQuestionAsInvalid = async (questionId) => {
+    // No permitir marcar como inválida si ya está marcada
+    if (invalidQuestions.has(questionId)) {
+      console.log(`⚠️ Pregunta ${questionId} ya está marcada como inválida`);
+      return;
     }
     
-    setInvalidQuestions(newInvalidQuestions);
+    console.log(`🚫 Marcando pregunta ${questionId} como inválida y cargando reemplazo...`);
     
-    // Marcar pregunta como inválida en la base de datos para futuro reporte
+    // 1. Marcar como inválida en la base de datos
     try {
       await fetch('/api/mark-invalid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question_id: questionId,
-          is_invalid: newInvalidQuestions.has(questionId)
+          is_invalid: true
         })
       });
       
-      console.log(`${newInvalidQuestions.has(questionId) ? '🚫' : '✅'} Pregunta ${questionId} marcada como ${newInvalidQuestions.has(questionId) ? 'inválida' : 'válida'}`);
+      console.log(`✅ Pregunta ${questionId} guardada como inválida en KV`);
     } catch (error) {
       console.error('Error marking question as invalid:', error);
+      alert('Error al marcar la pregunta como inválida');
+      return;
     }
     
-    // Guardar estado actualizado
-    await saveTestState();
+    // 2. Obtener IDs de todas las preguntas actuales para excluir del reemplazo
+    const currentQuestionIds = questions.map(q => q.id);
     
-    // Si necesitamos cargar preguntas extra y no lo hemos hecho aún
-    if (newInvalidQuestions.size > 0 && !extraQuestionsLoaded) {
-      await loadExtraQuestions();
-    }
-  };
-  
-  const loadExtraQuestions = async () => {
+    // 3. Cargar pregunta de reemplazo
     try {
-      const response = await fetch(`/api/questions?extra=${invalidQuestions.size}`);
-      const extraQuestions = await response.json();
+      const response = await fetch(`/api/questions?replace=1&exclude=${currentQuestionIds.join(',')}`);
       
-      // Agregar preguntas extra al final
-      setQuestions(prevQuestions => [...prevQuestions, ...extraQuestions]);
-      setExtraQuestionsLoaded(true);
+      if (!response.ok) {
+        throw new Error('No se pudo cargar pregunta de reemplazo');
+      }
       
-      console.log(`📚 Cargadas ${extraQuestions.length} preguntas extra para compensar inválidas`);
+      const replacementQuestion = await response.json();
+      console.log(`🔄 Pregunta de reemplazo cargada: ID ${replacementQuestion.id}`);
+      
+      // 4. Actualizar estado local
+      const newInvalidQuestions = new Set(invalidQuestions);
+      newInvalidQuestions.add(questionId);
+      setInvalidQuestions(newInvalidQuestions);
+      
+      // 5. Reemplazar la pregunta en el array actual
+      const newQuestions = [...questions];
+      newQuestions[currentIndex] = replacementQuestion;
+      setQuestions(newQuestions);
+      
+      // 6. Limpiar respuesta anterior y feedback
+      const newAnswers = { ...answers };
+      delete newAnswers[questionId]; // Eliminar respuesta de pregunta inválida
+      setAnswers(newAnswers);
+      
+      const newFeedback = { ...feedbackState };
+      delete newFeedback[questionId]; // Limpiar feedback
+      setFeedbackState(newFeedback);
+      
+      // 7. Guardar estado actualizado
+      await saveTestState(newAnswers);
+      
+      console.log(`✨ Pregunta ${questionId} reemplazada exitosamente por pregunta ${replacementQuestion.id}`);
+      
     } catch (error) {
-      console.error('Error loading extra questions:', error);
+      console.error('Error loading replacement question:', error);
+      alert('Error al cargar pregunta de reemplazo. La pregunta se mantendrá en el test.');
+      
+      // Si falla el reemplazo, revertir el marcado como inválida
+      try {
+        await fetch('/api/mark-invalid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question_id: questionId,
+            is_invalid: false
+          })
+        });
+      } catch (revertError) {
+        console.error('Error reverting invalid mark:', revertError);
+      }
     }
   };
 
@@ -238,32 +271,22 @@ export default function QuizScreen({ onComplete }) {
   };
   
   const finishTest = async () => {
-    // Filtrar preguntas válidas para cálculos finales
-    const validQuestions = questions.filter(q => !invalidQuestions.has(q.id));
-    const validAnswers = {};
-    
-    // Solo incluir respuestas de preguntas válidas
-    validQuestions.forEach(q => {
-      if (answers[q.id]) {
-        validAnswers[q.id] = answers[q.id];
-      }
-    });
-    
-    // USAR VALIDACIÓN CENTRALIZADA solo con preguntas válidas
-    const results = validateAnswers(validQuestions, validAnswers);
+    // Como el array siempre contiene solo preguntas válidas, simplificamos
+    const results = validateAnswers(questions, answers);
     const { correct, detailedResults } = results;
     
     // Log completo del análisis final
     console.log('📊 ANÁLISIS FINAL DE RESPUESTAS:');
-    console.log(`Total preguntas: ${questions.length}`);
-    console.log(`Preguntas válidas: ${validQuestions.length}`);
-    console.log(`Preguntas inválidas: ${invalidQuestions.size}`);
-    console.log(`Preguntas respondidas (válidas): ${detailedResults.filter(r => r.userAnswer !== null).length}`);
+    console.log(`Total preguntas válidas: ${questions.length}`);
+    console.log(`Preguntas reemplazadas durante el test: ${invalidQuestions.size}`);
+    console.log(`Preguntas respondidas: ${detailedResults.filter(r => r.userAnswer !== null).length}`);
     console.log(`Respuestas correctas: ${correct}`);
     console.log('Detalle por pregunta:', detailedResults);
-    console.log('Preguntas marcadas como inválidas:', Array.from(invalidQuestions));
+    if (invalidQuestions.size > 0) {
+      console.log('Preguntas reemplazadas automáticamente:', Array.from(invalidQuestions));
+    }
     
-    const score = validQuestions.length > 0 ? Math.round((correct / validQuestions.length) * 100) : 0;
+    const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
     const endTime = new Date();
     
     // Guardar test completo en Vercel
@@ -276,15 +299,14 @@ export default function QuizScreen({ onComplete }) {
           end_time: endTime.toISOString(),
           score,
           correct,
-          total: validQuestions.length,
-          total_questions_shown: questions.length,
-          invalid_questions: Array.from(invalidQuestions),
-          answers: validAnswers,
-          all_answers: answers
+          total: questions.length,
+          questions_replaced: invalidQuestions.size,
+          replaced_question_ids: Array.from(invalidQuestions),
+          answers
         })
       });
       
-      console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${validQuestions.length})`);
+      console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${questions.length})`);
     } catch (error) {
       console.error('❌ Error saving test to Vercel:', error);
     }
@@ -294,14 +316,14 @@ export default function QuizScreen({ onComplete }) {
     
     // Pasar resultados al componente padre
     onComplete({
-      questions: validQuestions,
-      answers: validAnswers,
+      questions,
+      answers,
       correct,
-      total: validQuestions.length,
+      total: questions.length,
       score,
       duration: Math.round((endTime - startTime) / 1000 / 60),
-      invalidQuestions: Array.from(invalidQuestions),
-      totalQuestionsShown: questions.length
+      questionsReplaced: invalidQuestions.size,
+      replacedQuestionIds: Array.from(invalidQuestions)
     });
   };
   
@@ -335,11 +357,8 @@ export default function QuizScreen({ onComplete }) {
   
   const question = questions[currentIndex];
   const selectedAnswer = answers[question.id];
-  const validQuestionsCount = questions.filter(q => !invalidQuestions.has(q.id)).length;
-  const currentValidIndex = questions.slice(0, currentIndex + 1).filter(q => !invalidQuestions.has(q.id)).length;
-  const progress = validQuestionsCount > 0 ? (currentValidIndex / validQuestionsCount) * 100 : 0;
+  const progress = ((currentIndex + 1) / questions.length) * 100;
   const questionFeedback = feedbackState[question.id];
-  const isCurrentQuestionInvalid = invalidQuestions.has(question.id);
   
   return (
     <div className="container fade-in">
@@ -372,18 +391,13 @@ export default function QuizScreen({ onComplete }) {
             Pregunta {currentIndex + 1} de {questions.length}
             {invalidQuestions.size > 0 && (
               <span className="valid-count">
-                ({validQuestionsCount} válidas{invalidQuestions.size > 0 ? `, ${invalidQuestions.size} inválidas` : ''})
+                ({invalidQuestions.size} reemplazadas automáticamente)
               </span>
             )}
           </span>
           <span className="category-tag">
             {formatCategory(question.categoria)}
           </span>
-          {isCurrentQuestionInvalid && (
-            <span className="invalid-tag">
-              🚫 INVÁLIDA
-            </span>
-          )}
         </div>
         
         <div className="question-text">
@@ -395,16 +409,21 @@ export default function QuizScreen({ onComplete }) {
             <input
               type="checkbox"
               checked={invalidQuestions.has(question.id)}
-              onChange={() => toggleInvalidQuestion(question.id)}
-              disabled={isPaused}
+              onChange={() => markQuestionAsInvalid(question.id)}
+              disabled={isPaused || invalidQuestions.has(question.id)}
               className="invalid-checkbox"
             />
             <span className="checkmark">🚫</span>
-            <span className="invalid-text">Marcar como pregunta inválida</span>
+            <span className="invalid-text">
+              {invalidQuestions.has(question.id) 
+                ? 'Pregunta marcada como inválida' 
+                : 'Marcar como pregunta inválida'
+              }
+            </span>
           </label>
           {invalidQuestions.has(question.id) && (
             <div className="invalid-notice">
-              ⚠️ Esta pregunta no contará en las estadísticas ni en el resultado final
+              ⚠️ Esta pregunta ha sido marcada como inválida y será reemplazada
             </div>
           )}
         </div>
@@ -495,12 +514,7 @@ export default function QuizScreen({ onComplete }) {
       
       <div className="progress-container">
         <div className="progress-text">
-          <span>
-            Progreso del test 
-            {invalidQuestions.size > 0 && (
-              <small> (solo preguntas válidas)</small>
-            )}
-          </span>
+          <span>Progreso del test</span>
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="progress-bar">
@@ -508,7 +522,7 @@ export default function QuizScreen({ onComplete }) {
         </div>
         {invalidQuestions.size > 0 && (
           <div className="progress-note">
-            📊 {currentValidIndex} de {validQuestionsCount} preguntas válidas respondidas
+            📝 {invalidQuestions.size} pregunta{invalidQuestions.size !== 1 ? 's' : ''} reemplazada{invalidQuestions.size !== 1 ? 's' : ''} automáticamente
           </div>
         )}
       </div>
