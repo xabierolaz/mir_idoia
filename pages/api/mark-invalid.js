@@ -15,11 +15,21 @@ export default async function handler(req, res) {
       
       if (is_invalid) {
         try {
+          // Guardar información de pregunta inválida
           await kv.set(invalidKey, JSON.stringify({
             question_id,
             marked_invalid_at: new Date().toISOString(),
             is_invalid: true
           }));
+          
+          // Mantener lista de IDs de preguntas inválidas
+          const currentList = await kv.get('invalid_questions_list');
+          const invalidIds = currentList ? JSON.parse(currentList) : [];
+          
+          if (!invalidIds.includes(question_id.toString())) {
+            invalidIds.push(question_id.toString());
+            await kv.set('invalid_questions_list', JSON.stringify(invalidIds));
+          }
           
           console.log(`🚫 Pregunta ${question_id} marcada como INVÁLIDA`);
         } catch (kvError) {
@@ -27,7 +37,15 @@ export default async function handler(req, res) {
         }
       } else {
         try {
+          // Eliminar información de pregunta inválida
           await kv.del(invalidKey);
+          
+          // Remover de la lista de IDs inválidos
+          const currentList = await kv.get('invalid_questions_list');
+          const invalidIds = currentList ? JSON.parse(currentList) : [];
+          const updatedIds = invalidIds.filter(id => id !== question_id.toString());
+          await kv.set('invalid_questions_list', JSON.stringify(updatedIds));
+          
           console.log(`✅ Pregunta ${question_id} desmarcada como inválida`);
         } catch (kvError) {
           console.log(`✅ Pregunta ${question_id} desmarcada como inválida (KV no disponible)`);
