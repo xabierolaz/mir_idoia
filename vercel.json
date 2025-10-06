@@ -1,31 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next@latest",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
-    }
-  ],
   "functions": {
     "pages/api/**/*.js": {
-      "maxDuration": 10,
+      "maxDuration": 30,
       "memory": 1024
     }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
   }
 }
