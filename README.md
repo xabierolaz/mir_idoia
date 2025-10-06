@@ -199,3 +199,4 @@ Vercel KV almacena:
 
 📧 Soporte: [crear issue en GitHub]# Trigger Vercel redeploy
 # Force Vercel redeploy Sun Oct  5 11:24:57 CEST 2025
+# Webhook trigger 1759734948
