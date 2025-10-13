@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Timer from './Timer';
-import { QuizStorage } from '../lib/kv-client';
 import { validateAnswer, validateAnswers } from '../lib/answer-validation';
-
-const storage = new QuizStorage();
 
 export default function QuizScreen({ onComplete }) {
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
-  const [startTime] = useState(new Date());
+  const [startTime, setStartTime] = useState(() => new Date());
   const [isPaused, setIsPaused] = useState(false);
   const [config, setConfig] = useState({});
   const [feedbackState, setFeedbackState] = useState({}); // { questionId: { show: true, isCorrect: boolean } }
@@ -24,35 +21,68 @@ export default function QuizScreen({ onComplete }) {
   const loadInitialData = async () => {
     try {
       // Cargar configuración del usuario
-      const userConfig = await storage.getUserConfig();
-      setConfig(userConfig);
-      
-      // Verificar si hay un test en curso
-      const savedState = await storage.getTestState();
-      if (savedState && savedState.questions) {
-        // Restaurar estado guardado
-        setQuestions(savedState.questions);
-        setCurrentIndex(savedState.currentIndex || 0);
-        setAnswers(savedState.answers || {});
-        setElapsedTime(savedState.elapsedTime || 0);
-        setInvalidQuestions(new Set(savedState.invalidQuestions || []));
-        setLoading(false);
-      } else {
-        // Cargar nuevas preguntas
-        await loadQuestions();
+      try {
+        const configResponse = await fetch('/api/config');
+        if (configResponse.ok) {
+          const configData = await configResponse.json();
+          setConfig(configData.config || {});
+        }
+      } catch (configError) {
+        console.error('Error loading user config:', configError);
       }
+
+      // Verificar si hay un test en curso
+      const savedStateResponse = await fetch('/api/test-state');
+      if (savedStateResponse.ok) {
+        const { state: savedState } = await savedStateResponse.json();
+        if (savedState && Array.isArray(savedState.questions) && savedState.questions.length > 0) {
+          const restoredStartTime = savedState.startTime ? new Date(savedState.startTime) : new Date();
+
+          // Restaurar estado guardado
+          setQuestions(savedState.questions);
+          setCurrentIndex(savedState.currentIndex || 0);
+          setAnswers(savedState.answers || {});
+          setElapsedTime(savedState.elapsedTime || 0);
+          setInvalidQuestions(new Set(savedState.invalidQuestions || []));
+          setIsPaused(Boolean(savedState.isPaused));
+          setStartTime(restoredStartTime);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Cargar nuevas preguntas
+      await loadQuestions();
     } catch (error) {
       console.error('Error loading initial data:', error);
       await loadQuestions();
     }
   };
-  
+
   const loadQuestions = async () => {
     try {
       const response = await fetch('/api/questions');
       const data = await response.json();
+      const initialStartTime = new Date();
+
       setQuestions(data);
+      setCurrentIndex(0);
+      setAnswers({});
+      setElapsedTime(0);
+      setInvalidQuestions(new Set());
+      setIsPaused(false);
+      setStartTime(initialStartTime);
       setLoading(false);
+
+      await saveTestState({
+        questions: data,
+        currentIndex: 0,
+        answers: {},
+        elapsedTime: 0,
+        isPaused: false,
+        invalidQuestions: new Set(),
+        startTime: initialStartTime
+      });
     } catch (error) {
       console.error('Error loading questions:', error);
       alert('Error al cargar las preguntas. Por favor, recarga la página.');
@@ -120,9 +150,9 @@ export default function QuizScreen({ onComplete }) {
     }
     
     // Guardar estado del test
-    await saveTestState(newAnswers);
+    await saveTestState({ answers: newAnswers });
   };
-  
+
   const markQuestionAsInvalid = async (questionId) => {
     // No permitir marcar como inválida si ya está marcada
     if (invalidQuestions.has(questionId)) {
@@ -168,12 +198,12 @@ export default function QuizScreen({ onComplete }) {
       const newInvalidQuestions = new Set(invalidQuestions);
       newInvalidQuestions.add(questionId);
       setInvalidQuestions(newInvalidQuestions);
-      
+
       // 5. Reemplazar la pregunta en el array actual
       const newQuestions = [...questions];
       newQuestions[currentIndex] = replacementQuestion;
       setQuestions(newQuestions);
-      
+
       // 6. Limpiar respuesta anterior y feedback
       const newAnswers = { ...answers };
       delete newAnswers[questionId]; // Eliminar respuesta de pregunta inválida
@@ -184,10 +214,14 @@ export default function QuizScreen({ onComplete }) {
       setFeedbackState(newFeedback);
       
       // 7. Guardar estado actualizado
-      await saveTestState(newAnswers);
-      
+      await saveTestState({
+        questions: newQuestions,
+        answers: newAnswers,
+        invalidQuestions: newInvalidQuestions
+      });
+
       console.log(`✨ Pregunta ${questionId} reemplazada exitosamente por pregunta ${replacementQuestion.id}`);
-      
+
     } catch (error) {
       console.error('Error loading replacement question:', error);
       alert('Error al cargar pregunta de reemplazo. La pregunta se mantendrá en el test.');
@@ -208,29 +242,47 @@ export default function QuizScreen({ onComplete }) {
     }
   };
 
-  const saveTestState = async (currentAnswers = answers) => {
+  const saveTestState = async (overrides = {}) => {
+    const snapshotQuestions = overrides.questions ?? questions;
+
+    if (!Array.isArray(snapshotQuestions) || snapshotQuestions.length === 0) {
+      return;
+    }
+
+    const snapshotStartTime = overrides.startTime ?? startTime;
+    const snapshotInvalid = overrides.invalidQuestions ?? invalidQuestions;
+
     const state = {
-      questions,
-      currentIndex,
-      answers: currentAnswers,
-      elapsedTime,
-      startTime,
-      isPaused,
-      invalidQuestions: Array.from(invalidQuestions)
+      questions: snapshotQuestions,
+      currentIndex: overrides.currentIndex ?? currentIndex,
+      answers: overrides.answers ?? answers,
+      elapsedTime: overrides.elapsedTime ?? elapsedTime,
+      startTime: snapshotStartTime instanceof Date ? snapshotStartTime.toISOString() : snapshotStartTime,
+      isPaused: overrides.isPaused ?? isPaused,
+      invalidQuestions: Array.isArray(snapshotInvalid)
+        ? snapshotInvalid
+        : Array.from(snapshotInvalid)
     };
-    
+
     try {
-      await storage.saveTestState(state);
+      const response = await fetch('/api/test-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to persist test state');
+      }
     } catch (error) {
       console.error('Error saving test state:', error);
     }
   };
-  
+
   const togglePause = async () => {
     const newPausedState = !isPaused;
     setIsPaused(newPausedState);
-    await saveTestState();
-    
+    await saveTestState({ isPaused: newPausedState });
+
     // Limpiar feedback al pausar
     if (newPausedState) {
       setFeedbackState({});
@@ -245,10 +297,12 @@ export default function QuizScreen({ onComplete }) {
       delete newFeedback[currentQuestion.id];
       setFeedbackState(newFeedback);
       
-      setCurrentIndex(currentIndex - 1);
+      const newIndex = currentIndex - 1;
+      setCurrentIndex(newIndex);
+      saveTestState({ currentIndex: newIndex });
     }
   };
-  
+
   const nextQuestion = () => {
     if (isPaused) return;
     
@@ -259,7 +313,9 @@ export default function QuizScreen({ onComplete }) {
     setFeedbackState(newFeedback);
     
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
+      saveTestState({ currentIndex: newIndex });
     } else {
       finishTest();
     }
@@ -288,7 +344,8 @@ export default function QuizScreen({ onComplete }) {
     
     const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
     const endTime = new Date();
-    
+    const durationMinutes = Math.round((endTime - startTime) / 1000 / 60);
+
     // Guardar test completo en Vercel
     try {
       await fetch('/api/complete-test', {
@@ -300,6 +357,7 @@ export default function QuizScreen({ onComplete }) {
           score,
           correct,
           total: questions.length,
+          duration: durationMinutes,
           questions_replaced: invalidQuestions.size,
           replaced_question_ids: Array.from(invalidQuestions),
           answers
@@ -312,7 +370,11 @@ export default function QuizScreen({ onComplete }) {
     }
     
     // Limpiar estado guardado
-    await storage.clearTestState();
+    try {
+      await fetch('/api/test-state', { method: 'DELETE' });
+    } catch (clearError) {
+      console.error('Error clearing test state:', clearError);
+    }
     
     // Pasar resultados al componente padre
     onComplete({
@@ -321,7 +383,7 @@ export default function QuizScreen({ onComplete }) {
       correct,
       total: questions.length,
       score,
-      duration: Math.round((endTime - startTime) / 1000 / 60),
+      duration: durationMinutes,
       questionsReplaced: invalidQuestions.size,
       replacedQuestionIds: Array.from(invalidQuestions)
     });
@@ -339,12 +401,6 @@ export default function QuizScreen({ onComplete }) {
       return () => clearInterval(interval);
     }
   }, [questions, loading, isPaused]);
-  
-  useEffect(() => {
-    if (questions.length > 0 && !loading) {
-      saveTestState();
-    }
-  }, [currentIndex, isPaused]);
   
   if (loading) {
     return (

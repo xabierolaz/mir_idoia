@@ -27,7 +27,13 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       };
 
-      await storage.saveTestState(payload);
+      const persisted = await storage.saveTestState(payload);
+
+      if (!persisted) {
+        console.error('API test-state POST persistence failure: storage.saveTestState returned false');
+        return res.status(500).json({ error: 'Failed to persist test state' });
+      }
+
       res.status(200).json({ status: 'ok' });
     } catch (error) {
       console.error('API test-state POST error:', error);
@@ -38,7 +44,13 @@ export default async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     try {
-      await storage.clearTestState();
+      const cleared = await storage.clearTestState();
+
+      if (!cleared) {
+        console.error('API test-state DELETE persistence failure: storage.clearTestState returned false');
+        return res.status(500).json({ error: 'Failed to clear test state' });
+      }
+
       res.status(200).json({ status: 'ok' });
     } catch (error) {
       console.error('API test-state DELETE error:', error);
