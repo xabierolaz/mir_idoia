@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QuizStorage } from '../lib/kv-client';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-const storage = new QuizStorage();
 
 export default function StatsScreen({ onBack }) {
   const [stats, setStats] = useState({});
@@ -17,15 +14,16 @@ export default function StatsScreen({ onBack }) {
   
   const loadAllData = async () => {
     try {
-      const [userStats, userProgress, testHistory] = await Promise.all([
-        storage.getUserStats(),
-        storage.getUserProgress(),
-        storage.getTestHistory(30)
-      ]);
-      
-      setStats(userStats);
-      setProgress(userProgress);
-      setHistory(testHistory);
+      const response = await fetch('/api/stats');
+      if (!response.ok) {
+        throw new Error('Failed to load stats');
+      }
+
+      const data = await response.json();
+
+      setStats(data.stats || {});
+      setProgress(data.progress || {});
+      setHistory(data.history || []);
       setLoading(false);
     } catch (error) {
       console.error('Error loading stats:', error);

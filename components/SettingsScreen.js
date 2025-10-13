@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { QuizStorage } from '../lib/kv-client';
-
-const storage = new QuizStorage();
 
 export default function SettingsScreen({ onBack }) {
   const [config, setConfig] = useState({
@@ -24,8 +21,15 @@ export default function SettingsScreen({ onBack }) {
   
   const loadConfig = async () => {
     try {
-      const userConfig = await storage.getUserConfig();
-      setConfig(userConfig);
+      const response = await fetch('/api/config');
+      if (!response.ok) {
+        throw new Error('Failed to load config');
+      }
+      const data = await response.json();
+      setConfig(prev => ({
+        ...prev,
+        ...(data.config || {})
+      }));
     } catch (error) {
       console.error('Error loading config:', error);
     }
@@ -43,7 +47,21 @@ export default function SettingsScreen({ onBack }) {
     setSaved(false);
     
     try {
-      await storage.updateUserConfig(config);
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update config');
+      }
+
+      const data = await response.json();
+      setConfig(prev => ({
+        ...prev,
+        ...(data.config || config)
+      }));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {

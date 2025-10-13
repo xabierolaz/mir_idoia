@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { QuizStorage } from '../lib/kv-client';
-
-const storage = new QuizStorage();
 
 export default function HistoryScreen({ onBack }) {
   const [history, setHistory] = useState([]);
@@ -14,8 +11,12 @@ export default function HistoryScreen({ onBack }) {
   
   const loadHistory = async () => {
     try {
-      const testHistory = await storage.getTestHistory(50);
-      setHistory(testHistory);
+      const response = await fetch('/api/history?limit=50');
+      if (!response.ok) {
+        throw new Error('Failed to load history');
+      }
+      const data = await response.json();
+      setHistory(data.history || []);
       setLoading(false);
     } catch (error) {
       console.error('Error loading history:', error);
@@ -141,6 +142,12 @@ export default function HistoryScreen({ onBack }) {
                     <span className="stat-label">Duración</span>
                     <span className="stat-value">{formatDuration(test.duration || 0)}</span>
                   </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Preguntas inválidas</span>
+                    <span className="stat-value">
+                      {test.questions_replaced || 0}
+                    </span>
+                  </div>
                 </div>
               </div>
               
@@ -193,11 +200,30 @@ function TestDetailModal({ test, onClose }) {
               <span>Tiempo empleado:</span>
               <strong>{test.duration || 0} minutos</strong>
             </div>
+            <div className="summary-item">
+              <span>Preguntas inválidas reemplazadas:</span>
+              <strong>{test.questions_replaced || 0}</strong>
+            </div>
           </div>
-          
+
           <div className="test-categories">
             <h4>Distribución por categorías</h4>
             <p className="coming-soon">Próximamente: análisis detallado por categorías</p>
+          </div>
+
+          <div className="test-invalid-questions">
+            <h4>Preguntas marcadas como inválidas</h4>
+            {Array.isArray(test.replaced_question_ids) && test.replaced_question_ids.length > 0 ? (
+              <ul className="invalid-questions-list">
+                {test.replaced_question_ids.map(id => (
+                  <li key={id}>Pregunta #{id}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="no-invalid-questions">
+                No se marcaron preguntas como inválidas en este test.
+              </p>
+            )}
           </div>
         </div>
         
