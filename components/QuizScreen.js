@@ -270,11 +270,24 @@ export default function QuizScreen({ onComplete }) {
     finishTest();
   };
   
+  const exitTest = async () => {
+    if (window.confirm('¿Seguro que quieres salir del test?\n\nTus respuestas hasta ahora YA ESTÁN GUARDADAS en las estadísticas.\nNo se guardará este test en el historial.')) {
+      console.log('🚪 Saliendo del test sin completar');
+      console.log(`📊 Preguntas respondidas: ${Object.keys(answers).length}/${questions.length}`);
+
+      // Limpiar estado guardado del test
+      await storage.clearTestState();
+
+      // Volver a la pantalla de inicio
+      onComplete(null); // null indica que se salió sin completar
+    }
+  };
+
   const finishTest = async () => {
     // Como el array siempre contiene solo preguntas válidas, simplificamos
     const results = validateAnswers(questions, answers);
     const { correct, detailedResults } = results;
-    
+
     // Log completo del análisis final
     console.log('📊 ANÁLISIS FINAL DE RESPUESTAS:');
     console.log(`Total preguntas válidas: ${questions.length}`);
@@ -285,10 +298,10 @@ export default function QuizScreen({ onComplete }) {
     if (invalidQuestions.size > 0) {
       console.log('Preguntas reemplazadas automáticamente:', Array.from(invalidQuestions));
     }
-    
+
     const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
     const endTime = new Date();
-    
+
     // Guardar test completo en Vercel
     try {
       await fetch('/api/complete-test', {
@@ -305,15 +318,15 @@ export default function QuizScreen({ onComplete }) {
           answers
         })
       });
-      
+
       console.log(`✅ Test completo guardado en Vercel: ${score}% (${correct}/${questions.length})`);
     } catch (error) {
       console.error('❌ Error saving test to Vercel:', error);
     }
-    
+
     // Limpiar estado guardado
     await storage.clearTestState();
-    
+
     // Pasar resultados al componente padre
     onComplete({
       questions,
@@ -371,20 +384,45 @@ export default function QuizScreen({ onComplete }) {
       )}
       
       <div className="controls-bar">
-        <button 
-          className={`btn ${isPaused ? 'btn-success' : 'btn-warning'}`}
-          onClick={togglePause}
-        >
-          {isPaused ? '▶ Reanudar' : '⏸ Pausar'}
-        </button>
+        <div className="controls-left">
+          <button
+            className={`btn ${isPaused ? 'btn-success' : 'btn-warning'}`}
+            onClick={togglePause}
+          >
+            {isPaused ? '▶ Reanudar' : '⏸ Pausar'}
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={exitTest}
+            disabled={isPaused}
+          >
+            🚪 Salir del Test
+          </button>
+        </div>
         <span className="test-status">
           {isPaused ? 'TEST EN PAUSA' : 'TEST EN CURSO'}
         </span>
         <span className="auto-save-indicator">
-          💾 Guardado automático en Vercel
+          💾 Guardado en tiempo real
         </span>
       </div>
       
+      {/* OVERLAY DE PAUSA - FUERA DE LA TARJETA */}
+      {isPaused && (
+        <div className="paused-overlay">
+          <div className="paused-content">
+            <h2>⏸️ Test en pausa</h2>
+            <p>Tu progreso está guardado automáticamente</p>
+            <button
+              className="btn btn-success btn-large"
+              onClick={togglePause}
+            >
+              ▶ Reanudar Test
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="question-card">
         <div className="question-header">
           <span className="question-number">
@@ -399,11 +437,11 @@ export default function QuizScreen({ onComplete }) {
             {formatCategory(question.categoria)}
           </span>
         </div>
-        
+
         <div className="question-text">
           {question.pregunta}
         </div>
-        
+
         <div className="invalid-question-control">
           <label className="invalid-checkbox-label">
             <input
@@ -415,8 +453,8 @@ export default function QuizScreen({ onComplete }) {
             />
             <span className="checkmark">🚫</span>
             <span className="invalid-text">
-              {invalidQuestions.has(question.id) 
-                ? 'Pregunta marcada como inválida' 
+              {invalidQuestions.has(question.id)
+                ? 'Pregunta marcada como inválida'
                 : 'Marcar como pregunta inválida'
               }
             </span>
@@ -427,14 +465,14 @@ export default function QuizScreen({ onComplete }) {
             </div>
           )}
         </div>
-        
+
         <div className="options">
           {Object.entries(question.opciones).map(([key, value]) => {
             const isSelected = selectedAnswer === key;
             const isCorrectOption = key === question.correcta;
-            
+
             let optionClass = 'option';
-            
+
             // Si hay feedback visible para esta pregunta
             if (questionFeedback && questionFeedback.show) {
               if (isSelected) {
@@ -446,13 +484,13 @@ export default function QuizScreen({ onComplete }) {
             } else if (isSelected) {
               optionClass += ' selected';
             }
-            
+
             return (
               <div
                 key={key}
                 className={optionClass}
                 onClick={() => !questionFeedback?.show && selectAnswer(key)}
-                style={{ 
+                style={{
                   cursor: (questionFeedback?.show || isPaused) ? 'default' : 'pointer',
                   pointerEvents: (questionFeedback?.show || isPaused) ? 'none' : 'auto'
                 }}
@@ -463,7 +501,7 @@ export default function QuizScreen({ onComplete }) {
             );
           })}
         </div>
-        
+
         {/* FEEDBACK INMEDIATO */}
         {questionFeedback && questionFeedback.show && (
           <div className={`feedback-message ${questionFeedback.isCorrect ? 'correct' : 'incorrect'}`}>
@@ -485,31 +523,23 @@ export default function QuizScreen({ onComplete }) {
             </div>
           </div>
         )}
-        
+
         <div className="navigation">
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             onClick={previousQuestion}
             disabled={currentIndex === 0 || isPaused}
           >
             ← Anterior
           </button>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             onClick={nextQuestion}
             disabled={!selectedAnswer || isPaused}
           >
             {currentIndex === questions.length - 1 ? 'Finalizar Test' : 'Siguiente →'}
           </button>
         </div>
-        
-        {isPaused && (
-          <div className="paused-overlay">
-            <h2>Test en pausa</h2>
-            <p>Tu progreso está guardado en Vercel</p>
-            <p>Haz clic en "Reanudar" para continuar</p>
-          </div>
-        )}
       </div>
       
       <div className="progress-container">

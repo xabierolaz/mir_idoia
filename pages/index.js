@@ -50,6 +50,15 @@ export default function Home() {
   };
   
   const handleQuizComplete = (results) => {
+    // Si results es null, significa que salió sin completar
+    if (results === null) {
+      console.log('📊 Test abandonado - estadísticas ya guardadas en tiempo real');
+      setMode('home');
+      initializeApp();
+      return;
+    }
+
+    // Test completado normalmente
     setTestResults(results);
     setMode('results');
     // Recargar estadísticas

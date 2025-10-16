@@ -588,6 +588,14 @@ a {
   background: var(--card-bg);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+
+.controls-left {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .test-status {
@@ -617,6 +625,23 @@ a {
 
 .btn-warning:hover:not(:disabled) {
   background: #d97706;
+}
+
+.btn-danger {
+  background: var(--error);
+  color: white;
+  padding: 8px 16px;
+  width: auto;
+  margin: 0;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Feedback */
@@ -657,23 +682,51 @@ a {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
 }
 
-.paused-overlay h2 {
-  color: white;
-  font-size: 2.5rem;
+.paused-content {
+  background: white;
+  padding: 3rem 2rem;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.paused-content h2 {
+  color: var(--primary);
+  font-size: 2rem;
   margin-bottom: 1rem;
 }
 
-.paused-overlay p {
-  color: white;
-  font-size: 1.25rem;
+.paused-content p {
+  color: var(--text-light);
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.btn-large {
+  padding: 16px 32px;
+  font-size: 1.1rem;
+  min-width: 200px;
 }
 
 /* Auto-save indicators */
@@ -735,18 +788,39 @@ a {
     text-align: center;
     gap: 0.5rem;
   }
-  
+
+  .controls-left {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .controls-left .btn {
+    flex: 1;
+    font-size: 0.875rem;
+    padding: 8px 12px;
+  }
+
   .auto-save-indicator {
     order: 3;
     font-size: 0.7rem;
   }
-  
-  .paused-overlay h2 {
-    font-size: 2rem;
+
+  .paused-content {
+    padding: 2rem 1.5rem;
+    margin: 20px;
   }
-  
-  .paused-overlay p {
+
+  .paused-content h2 {
+    font-size: 1.5rem;
+  }
+
+  .paused-content p {
     font-size: 1rem;
+  }
+
+  .btn-large {
+    width: 100%;
+    min-width: unset;
   }
 }
 
