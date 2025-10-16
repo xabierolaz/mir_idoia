@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { QuizStorage } from '../lib/kv-client';
-
-const storage = new QuizStorage();
 
 export default function SettingsScreen({ onBack }) {
   const [config, setConfig] = useState({
@@ -24,31 +21,46 @@ export default function SettingsScreen({ onBack }) {
   
   const loadConfig = async () => {
     try {
-      const userConfig = await storage.getUserConfig();
-      setConfig(userConfig);
+      const response = await fetch('/api/config');
+      const data = await response.json();
+      setConfig(data.config);
+      console.log('✅ Configuración cargada desde KV:', data.config);
     } catch (error) {
       console.error('Error loading config:', error);
     }
   };
-  
+
   const handleChange = (key, value) => {
     setConfig(prev => ({
       ...prev,
       [key]: value
     }));
   };
-  
+
   const saveConfig = async () => {
     setSaving(true);
     setSaved(false);
-    
+
     try {
-      await storage.updateUserConfig(config);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'ok') {
+        console.log('✅ Configuración guardada en KV:', data.config);
+        setConfig(data.config); // Actualizar con la configuración confirmada del servidor
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        throw new Error(data.error || 'Error saving config');
+      }
     } catch (error) {
-      console.error('Error saving config:', error);
-      alert('Error al guardar la configuración');
+      console.error('❌ Error saving config:', error);
+      alert('Error al guardar la configuración: ' + error.message);
     } finally {
       setSaving(false);
     }
